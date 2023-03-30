@@ -1,0 +1,23 @@
+
+h	java:S112"FDefine and throw a dedicated exception instead of using a generic one.(Ò‚Òéüÿÿÿÿ8´ÆÛò0
+h	java:S112«"FDefine and throw a dedicated exception instead of using a generic one.(Ò‚Òéüÿÿÿÿ8ÔÆÛò0
+E
+java:S1604&"(Make this anonymous inner class a lambda(ãÍÌ8ŞÆÛò0
+F
+java:S1604·"(Make this anonymous inner class a lambda(Â†ÍÑ8ßÆÛò0
+K
+java:S1604Ã"(Make this anonymous inner class a lambda(¢Ë°÷ıÿÿÿÿ8ßÆÛò0
+K
+java:S1604Ê"(Make this anonymous inner class a lambda(ºø“¹şÿÿÿÿ8àÆÛò0
+L
+java:S1874&"/Remove this use of "Handler"; it is deprecated.(ãÍÌ8³ÉÛò0
+p
+java:S3776µ"RRefactor this method to reduce its Cognitive Complexity from 22 to the 15 allowed.(šœ•²8ÛÉÛò0
+[
+java:S1854Ø"8Remove this useless assignment to local variable "port".(Îê“Òûÿÿÿÿ8æÉÛò0
+Y
+java:S1854×"6Remove this useless assignment to local variable "ip".(ŠÑö©üÿÿÿÿ8æÉÛò0
+J
+java:S1481×"'Remove this unused "ip" local variable.(ŠÑö©üÿÿÿÿ8êÉÛò0
+L
+java:S1481Ø")Remove this unused "port" local variable.(Îê“Òûÿÿÿÿ8ëÉÛò0

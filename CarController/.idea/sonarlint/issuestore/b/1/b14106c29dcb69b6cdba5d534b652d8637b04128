@@ -1,0 +1,14 @@
+
+`	java:S112"FDefine and throw a dedicated exception instead of using a generic one.(Ò‚Òéüÿÿÿÿ
+`	java:S112Z"FDefine and throw a dedicated exception instead of using a generic one.(Ò‚Òéüÿÿÿÿ
+s	java:S135q"YReduce the total number of break and continue statements in this loop to use at most one.(ƒÁœÄıÿÿÿÿ
+7
+java:S1170"!Make this final field static too.(ì†áÂ
+<
+java:S1170"!Make this final field static too.(í—ğ“ÿÿÿÿÿ
+J
+java:S1172#"4Remove this unused method parameter "broadcastBody".(…¡µí
+t
+java:S2142V"^Either re-interrupt this method or rethrow the "InterruptedException" that can be caught here.(ä ¹€
+u
+java:S2142‚"^Either re-interrupt this method or rethrow the "InterruptedException" that can be caught here.(ä ¹€
