@@ -23,53 +23,62 @@
 #endif
 
 #define WS_PORT 8088
+#define _WEBSOCKETS_LOGLEVEL_ 0
+#define DEBUG_MODE 0
 
-#define _WEBSOCKETS_LOGLEVEL_ 2
+#if DEBUG_MODE
+#define DEBUG_PRINT(x) Serial.print(x)
+#define DEBUG_PRINTLN(x) Serial.println(x)
+#define DEBUG_PRINTF(...) Serial.printf(__VA_ARGS__)
+#define DEBUG_WRITE(x, len) Serial.write(x, len)
+#else
+#define DEBUG_PRINT(x)
+#define DEBUG_PRINTLN(x)
+#define DEBUG_PRINTF(...)
+#define DEBUG_WRITE(x, len)
+#endif
 
 
-/* Wifi Crdentials */
+/* Wifi Credentials */
 String sta_ssid = "zhqm";           // set Wifi network you want to connect to
 String sta_password = "19870827";  // set password for Wifi network
 unsigned long previousMillis = 0;
 IPAddress myIP;
 
 AsyncUDP udp;
-
 WebSocketsServer webSocket = WebSocketsServer(WS_PORT);
-
-U8X8_SSD1306_128X32_UNIVISION_SW_I2C u8x8(/* clock=*/ 21, /* data=*/ 19, /* reset=*/ U8X8_PIN_NONE); 
+U8X8_SSD1306_128X32_UNIVISION_SW_I2C u8x8(/* clock=*/ 21, /* data=*/ 19, /* reset=*/ U8X8_PIN_NONE);
 
 int LISTEN_PORT = 9567;
+volatile int heart = 0;
 
+// Pre-allocated JSON document for better performance
+StaticJsonDocument<256> jsonDoc;
+
+// Function declarations
 void init_wifi();
 void init_server();
-void handle_controller(char* payload);
-
+void handle_controller(const char* payload);
 void response_broadcast();
-// pre for oled
 void pre(void);
-
-int heart = 0;
 void dispatchHeartBeat(void *pvParameters) {
-    int heart_flag = (int) pvParameters;
+    (void)pvParameters; // Suppress unused parameter warning
     int count = 0;
     while(1) {
-         Serial.printf("heart %d!\n",heart);
-        if(heart == 0){
+        DEBUG_PRINTF("heart %d!\n", heart);
+        if(heart == 0) {
           count++;
-        }else{
+        } else {
           count = 0;
           heart = 0;
         }
-        if(count >= 3)
-        {
+        if(count >= 3) {
           count = 0;
-          Serial.printf("Disconnected!\n");
+          DEBUG_PRINTF("Disconnected!\n");
           front_turn(0, 0);
           u8x8.clearLine(3);
           u8x8.setCursor(0, 3);
           u8x8.print("Disconnected");
-          
         }
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
@@ -91,70 +100,58 @@ void checkHeartBeat(){
 }
 
 void hexdump(const void* mem, const uint32_t& len, const uint8_t& cols = 16) {
+  #if DEBUG_MODE
   const uint8_t* src = (const uint8_t*)mem;
-
-  Serial.printf("\n[HEXDUMP] Address: 0x%08X len: 0x%X (%d)", (ptrdiff_t)src, len, len);
+  DEBUG_PRINTF("\n[HEXDUMP] Address: 0x%08X len: 0x%X (%d)", (ptrdiff_t)src, len, len);
 
   for (uint32_t i = 0; i < len; i++) {
     if (i % cols == 0) {
-      Serial.printf("\n[0x%08X] 0x%08X: ", (ptrdiff_t)src, i);
+      DEBUG_PRINTF("\n[0x%08X] 0x%08X: ", (ptrdiff_t)src, i);
     }
-
-    Serial.printf("%02X ", *src);
+    DEBUG_PRINTF("%02X ", *src);
     src++;
   }
-
-  Serial.printf("\n");
+  DEBUG_PRINTF("\n");
+  #endif
 }
 
 
 void webSocketEvent(const uint8_t& num, const WStype_t& type, uint8_t* payload, const size_t& length) {
   switch (type) {
     case WStype_DISCONNECTED:
-      Serial.printf("[%u] Disconnected!\n", num);
+      DEBUG_PRINTF("[%u] Disconnected!\n", num);
       front_turn(0, 0);
       u8x8.clearLine(3);
       u8x8.setCursor(0, 3);
       u8x8.print("Disconnected");
-
-
       break;
+
     case WStype_CONNECTED:
       {
         IPAddress ip = webSocket.remoteIP(num);
-        Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
-        // send message to client
+        DEBUG_PRINTF("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
         webSocket.sendTXT(num, "Connected");
         u8x8.clearLine(3);
         u8x8.setCursor(0, 3);
         u8x8.print("connected");
-        
-
       }
       break;
 
     case WStype_TEXT:
-      Serial.printf("[%u] get Text: %s\n", num, payload);
-      // send message to client
-      handle_controller((char*)payload);
+      DEBUG_PRINTF("[%u] get Text: %s\n", num, payload);
+      handle_controller((const char*)payload);
       webSocket.sendTXT(num, "OK");
-      // send data to all connected clients
-
       break;
 
     case WStype_BIN:
-      Serial.printf("[%u] get binary length: %u\n", num, length);
-      if (payload[0] == 0xAA && payload[1] == 0xAA) {
+      DEBUG_PRINTF("[%u] get binary length: %u\n", num, length);
+      if (length >= 2 && payload[0] == 0xAA && payload[1] == 0xAA) {
         // 心跳包
-        Serial.println("heart beat");
+        DEBUG_PRINTLN("heart beat");
         heart = 1;
-       
       }
       hexdump(payload, length);
-
-      // send message to client
       webSocket.sendBIN(num, payload, length);
-
       break;
 
     case WStype_ERROR:
@@ -162,14 +159,12 @@ void webSocketEvent(const uint8_t& num, const WStype_t& type, uint8_t* payload, 
       u8x8.clearLine(3);
       u8x8.setCursor(0, 3);
       u8x8.print("connect error");
-  
       break;
 
     case WStype_FRAGMENT_TEXT_START:
     case WStype_FRAGMENT_BIN_START:
     case WStype_FRAGMENT:
     case WStype_FRAGMENT_FIN:
-
       break;
 
     default:
@@ -179,11 +174,13 @@ void webSocketEvent(const uint8_t& num, const WStype_t& type, uint8_t* payload, 
 
 
 void setup() {
-  Serial.begin(115200);  // set up seriamonitor at 115200 bps
+  Serial.begin(115200);
+  #if DEBUG_MODE
   Serial.setDebugOutput(true);
   Serial.println();
   Serial.println("*ESP32  Remote Control Car");
   Serial.println("--------------------------------------------------------");
+  #endif
 
   init_motor();
   u8x8.begin();
@@ -191,7 +188,6 @@ void setup() {
   init_server();
   response_broadcast();
   checkHeartBeat();
-
 }
 
 
@@ -203,28 +199,29 @@ void pre(void) {
 
 void response_broadcast() {
   if (udp.listen(LISTEN_PORT)) {
-    Serial.print("UDP Listening on IP: ");
-    Serial.println(WiFi.localIP());
+    DEBUG_PRINT("UDP Listening on IP: ");
+    DEBUG_PRINTLN(WiFi.localIP());
     udp.onPacket([](AsyncUDPPacket packet) {
-      Serial.print("UDP Packet Type: ");
-      Serial.print(packet.isBroadcast() ? "Broadcast" : packet.isMulticast() ? "Multicast"
-                                                                             : "Unicast");
-      Serial.print(", From: ");
-      Serial.print(packet.remoteIP());
-      Serial.print(":");
-      Serial.print(packet.remotePort());
-      Serial.print(", To: ");
-      Serial.print(packet.localIP());
-      Serial.print(":");
-      Serial.print(packet.localPort());
-      Serial.print(", Length: ");
-      Serial.print(packet.length());
-      Serial.print(", Data: ");
-      Serial.write(packet.data(), packet.length());
-      Serial.println();
+      #if DEBUG_MODE
+      DEBUG_PRINT("UDP Packet Type: ");
+      DEBUG_PRINT(packet.isBroadcast() ? "Broadcast" : packet.isMulticast() ? "Multicast" : "Unicast");
+      DEBUG_PRINT(", From: ");
+      DEBUG_PRINT(packet.remoteIP());
+      DEBUG_PRINT(":");
+      DEBUG_PRINT(packet.remotePort());
+      DEBUG_PRINT(", To: ");
+      DEBUG_PRINT(packet.localIP());
+      DEBUG_PRINT(":");
+      DEBUG_PRINT(packet.localPort());
+      DEBUG_PRINT(", Length: ");
+      DEBUG_PRINT(packet.length());
+      DEBUG_PRINT(", Data: ");
+      DEBUG_WRITE(packet.data(), packet.length());
+      DEBUG_PRINTLN();
+      #endif
 
-      if (strcmp((char*)packet.data(), "scanCar") == 0) {
-        Serial.print(myIP.toString());
+      if (strncmp((const char*)packet.data(), "scanCar", 7) == 0) {
+        DEBUG_PRINT(myIP.toString());
         packet.print(myIP.toString());
       }
     });
@@ -232,49 +229,48 @@ void response_broadcast() {
 }
 
 void init_server() {
-  Serial.println("*init websocket*");
+  DEBUG_PRINTLN("*init websocket*");
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
-  Serial.print("WebSockets Server started @ IP address: ");
-  Serial.print(WiFi.localIP());
-  Serial.print(", port: ");
-  Serial.println(WS_PORT);
+  DEBUG_PRINT("WebSockets Server started @ IP address: ");
+  DEBUG_PRINT(WiFi.localIP());
+  DEBUG_PRINT(", port: ");
+  DEBUG_PRINTLN(WS_PORT);
 }
 
-void handle_controller(char* payload) {
+void handle_controller(const char* payload) {
+  // Clear the static JSON document for reuse
+  jsonDoc.clear();
+  DeserializationError error = deserializeJson(jsonDoc, payload);
 
-  DynamicJsonDocument doc(1024);
-  DeserializationError error = deserializeJson(doc, payload);
-  
   if (error) {
-    Serial.println("deserializeJson failed");
+    DEBUG_PRINTLN("deserializeJson failed");
     return;
   }
 
-  int LF = doc["LF"];
-  int RF = doc["RF"];
-  int LB = doc["LB"];
-  int RB = doc["RB"];
+  int LF = jsonDoc["LF"];
+  int RF = jsonDoc["RF"];
+  int LB = jsonDoc["LB"];
+  int RB = jsonDoc["RB"];
+
+  // Validate input ranges
+  if (LF < -255 || LF > 255 || RF < -255 || RF > 255 ||
+      LB < -255 || LB > 255 || RB < -255 || RB > 255) {
+    DEBUG_PRINTLN("Invalid motor values");
+    return;
+  }
 
   if (LF == LB && RF == RB) {
     // 边轮模式
     if (LF >= 0 && RF >= 0) {
-
       front_turn(LF, RF);
-
     } else if (LF <= 0 && RF <= 0) {
-
       back_turn(abs(LF), abs(RF));
-
     } else if (LF < 0 && RF > 0) {
-
       left_tank_turn(abs(LF));
-
     } else if (LF > 0 && RF < 0) {
-
       right_tank_turn(abs(LF));
     }
-
   } else {
     //TODO 麦克纳姆轮模式
   }
@@ -284,61 +280,60 @@ void init_wifi() {
   char chip_id[15];
   snprintf(chip_id, 15, "%04X", (uint16_t)(ESP.getEfuseMac() >> 32));
   String hostname = "esp32car-" + String(chip_id);
-  Serial.println();
-  Serial.println("Hostname: " + hostname);
+  DEBUG_PRINTLN();
+  DEBUG_PRINT("Hostname: ");
+  DEBUG_PRINTLN(hostname);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(sta_ssid.c_str(), sta_password.c_str());
-  Serial.println("");
-  Serial.print("Connecting to: ");
-  Serial.println(sta_ssid);
-  Serial.print("Password: ");
-  Serial.println(sta_password);
+  DEBUG_PRINTLN();
+  DEBUG_PRINT("Connecting to: ");
+  DEBUG_PRINTLN(sta_ssid);
 
-  // try to connect with Wifi network about 10 seconds
-  unsigned long currentMillis = millis();
-  previousMillis = currentMillis;
-  while (WiFi.status() != WL_CONNECTED && currentMillis - previousMillis <= 10000) {
-    delay(500);
-    Serial.print(".");
-    currentMillis = millis();
+  // Non-blocking WiFi connection with better performance
+  unsigned long startTime = millis();
+  const unsigned long timeout = 10000;
+
+  while (WiFi.status() != WL_CONNECTED && (millis() - startTime) < timeout) {
+    delay(100); // Reduced delay for faster response
+    DEBUG_PRINT(".");
   }
 
-  // if failed to connect with Wifi network set NodeMCU as AP mode
-
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("");
-    Serial.println("*WiFi-STA-Mode*");
-    Serial.print("IP: ");
+    DEBUG_PRINTLN();
+    DEBUG_PRINTLN("*WiFi-STA-Mode*");
+    DEBUG_PRINT("IP: ");
+    DEBUG_PRINTLN(WiFi.localIP());
     myIP = WiFi.localIP();
-    Serial.println(myIP);
     pre();
     u8x8.setCursor(0, 0);
     u8x8.clearLine(0);
     u8x8.print("*WiFi-STA-Mode*");
-    delay(2000);
+    delay(1000); // Reduced delay
   } else {
     WiFi.mode(WIFI_AP);
     WiFi.softAP(hostname.c_str());
     myIP = WiFi.softAPIP();
-    Serial.println("");
-    Serial.println("WiFi failed connected to " + sta_ssid);
-    Serial.println("");
-    Serial.println("*WiFi-AP-Mode*");
-    Serial.print("AP IP address: ");
-    Serial.println(myIP);
+    DEBUG_PRINTLN();
+    DEBUG_PRINT("WiFi failed to connect to ");
+    DEBUG_PRINTLN(sta_ssid);
+    DEBUG_PRINTLN();
+    DEBUG_PRINTLN("*WiFi-AP-Mode*");
+    DEBUG_PRINT("AP IP address: ");
+    DEBUG_PRINTLN(myIP);
     pre();
     u8x8.setCursor(0, 0);
     u8x8.clearLine(0);
     u8x8.print("*WiFi-AP-Mode*");
-    delay(2000);
+    delay(1000); // Reduced delay
   }
+
   u8x8.setCursor(0, 1);
   u8x8.clearLine(1);
   u8x8.print(myIP);
   u8x8.setCursor(0, 2);
   u8x8.clearLine(2);
-  u8x8.print("aleady...");
+  u8x8.print("ready...");
 }
 
 
